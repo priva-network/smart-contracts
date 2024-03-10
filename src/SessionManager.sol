@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.19;
 
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -9,6 +9,8 @@ interface INodeRegistry {
 }
 
 contract SessionManager {
+    using ECDSA for bytes32;
+
     struct Session {
         uint256 startTime;
         uint256 computeCostLimit;
@@ -64,29 +66,28 @@ contract SessionManager {
         require(deposits[msg.sender] >= _amountPaid, "Insufficient deposit to cover payment");
         
         // Construct the message that was signed
-        bytes32 message = keccak256(abi.encodePacked(_sessionId, _amountPaid));
-        // Prefix the message to match the Ethereum signed message format
-        bytes32 ethSignedMessageHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", message)
-        );
-
-        // Split the signature into its components
-        (bytes32 r, bytes32 s, uint8 v) = splitSignature(_signature);
-
-        // Recover the signer from the hash and the signature components
-        address signer = ecrecover(ethSignedMessageHash, v, r, s);
+        bytes32 messageHash = keccak256(abi.encodePacked(_sessionId, _amountPaid));
 
         // Retrieve the node address from your getNodeDetails function
         (, address nodeAddress, ) = nodeRegistry.getNodeDetails(session.nodeId);
-        
-        // Verify that the signer is the node associated with this session
-        require(signer == nodeAddress, "Invalid signature");
+
+        // Verify the signature
+        require(isValidSignature(nodeAddress, messageHash, _signature), "Invalid signature");
 
         session.isActive = false;
         deposits[msg.sender] -= _amountPaid;
         session.amountPaid = _amountPaid;
 
         emit SessionClosed(_sessionId, msg.sender, session.nodeId, _amountPaid);
+    }
+
+    function isValidSignature(address _addressToMatch, bytes32 _hash, bytes memory _signature) public pure returns (bool) {
+        require(_addressToMatch != address(0), "Invalid address");
+
+        bytes32 ethSignedMessageHash = _hash.toEthSignedMessageHash();
+        address recoveredSigner = ethSignedMessageHash.recover(_signature);
+
+        return recoveredSigner == _addressToMatch;
     }
 
     // Utility function to split the signature into its components
