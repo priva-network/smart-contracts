@@ -5,6 +5,7 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface INodeRegistry {
     function nodeExists(uint nodeId) external view returns (bool);
+    function isNodeActive(uint nodeId) external view returns (bool);
     function getNodeDetails(uint nodeId) external view returns (string memory, address, bool);
 }
 
@@ -42,16 +43,16 @@ contract SessionManager {
     }
 
     // Allow users to deposit ETH into the contract
-    function deposit() public payable {
+    function deposit() external payable {
         require(msg.value > 0, "Deposit must be greater than 0");
         deposits[msg.sender] += msg.value;
     }
 
-    // Open a session after verifying user has enough deposit
-    // Simplified to not check if node exists for brevity
+    // Open a session after verifying user has enough deposit and node exists
     function openSession(uint256 _computeCostLimit, uint _nodeId) public {
         require(deposits[msg.sender] >= _computeCostLimit, "Insufficient deposit for compute cost limit");
         require(nodeRegistry.nodeExists(_nodeId), "Node does not exist");
+        require(nodeRegistry.isNodeActive(_nodeId), "Node is not active");
 
         sessions[sessionCount] = Session(block.timestamp, _computeCostLimit, msg.sender, _nodeId, true, 0);
         emit SessionOpened(sessionCount, msg.sender, _nodeId);
@@ -63,6 +64,7 @@ contract SessionManager {
 
         require(session.isActive, "Session is not active");
         require(session.user == msg.sender, "Only the session user can close the session");
+        require(session.computeCostLimit >= _amountPaid, "Amount paid exceeds compute cost limit");
         require(deposits[msg.sender] >= _amountPaid, "Insufficient deposit to cover payment");
         
         // Construct the message that was signed
@@ -90,33 +92,14 @@ contract SessionManager {
         return recoveredSigner == _addressToMatch;
     }
 
-    // Utility function to split the signature into its components
-    function splitSignature(bytes memory _sig)
-        internal
-        pure
-        returns (bytes32 r, bytes32 s, uint8 v)
-    {
-        require(_sig.length == 65, "Invalid signature length");
-
-        assembly {
-            // first 32 bytes, after the length prefix
-            r := mload(add(_sig, 32))
-            // second 32 bytes
-            s := mload(add(_sig, 64))
-            // final byte (first byte of the next 32 bytes)
-            v := byte(0, mload(add(_sig, 96)))
-        }
-
-        // Adjust for Ethereum's signing quirks
-        if (v < 27) v += 27;
-    }
-
     function claimPayment(uint _sessionId) external {
         Session storage session = sessions[_sessionId];
         
         require(!session.isActive || block.timestamp - session.startTime > SESSION_TIMEOUT, "Session not closed or time limit not reached");
         require(nodeRegistry.nodeExists(session.nodeId), "Node does not exist");
-        require(session.amountPaid > 0, "No payment to claim");
+        if (!session.isActive) {
+            require(session.amountPaid > 0, "No payment to claim");
+        }
         
         // Get the node owner's address from the node registry
         (, address nodeOwner, ) = nodeRegistry.getNodeDetails(session.nodeId);
@@ -126,9 +109,13 @@ contract SessionManager {
     }
 
     // Allow users to withdraw their unused deposit
-    function withdrawDeposit(uint256 _amount) public {
+    function withdraw(uint256 _amount) public {
         require(deposits[msg.sender] >= _amount, "Insufficient deposit");
         deposits[msg.sender] -= _amount;
         payable(msg.sender).transfer(_amount);
+    }
+
+    function getBalance(address _user) external view returns (uint256) {
+        return deposits[_user];
     }
 }
