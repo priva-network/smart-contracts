@@ -12,3 +12,9 @@ docs/
 
 # Dotenv file
 .env
+
+# Scripts (they contain private keys, but they shouldn't)
+script/
+
+# forge/cast folders
+broadcast/
