@@ -5,7 +5,6 @@ contract NodeRegistry {
     struct Node {
         string ipAddress;
         address owner;
-        bool isActive;
     }
 
     mapping(uint => Node) public nodes;
@@ -16,8 +15,8 @@ contract NodeRegistry {
     uint public nodeIndex = 1;
 
     // Event declarations
-    event NodeRegistered(uint indexed nodeId, string ipAddress, address owner, bool isActive);
-    event NodeStatusChanged(uint indexed nodeId, bool isActive);
+    event NodeRegistered(uint indexed nodeId, string ipAddress, address owner);
+    event NodeIPAddressUpdated(uint indexed nodeId, string newIPAddress);
 
     /**
      * Registers a new node with the provided IP address.
@@ -27,22 +26,10 @@ contract NodeRegistry {
      * @param _owner The address of the node's owner.
      */
     function registerNode(string memory _ipAddress, address _owner) public {
-        nodes[nodeIndex] = Node(_ipAddress, _owner, false);
+        nodes[nodeIndex] = Node(_ipAddress, _owner);
         nodeOwnerToId[_owner] = nodeIndex;
-        emit NodeRegistered(nodeIndex, _ipAddress, _owner, false);
+        emit NodeRegistered(nodeIndex, _ipAddress, _owner);
         nodeIndex++;
-    }
-
-    /**
-     * Sets the active status of a specified node.
-     * 
-     * @param _nodeId The ID of the node to update.
-     * @param _isActive The new active status of the node.
-     */
-    function setNodeActiveStatus(uint _nodeId, bool _isActive) public {
-        require(_nodeId < nodeIndex, "Node does not exist.");
-        nodes[_nodeId].isActive = _isActive;
-        emit NodeStatusChanged(_nodeId, _isActive);
     }
 
     /**
@@ -54,6 +41,7 @@ contract NodeRegistry {
     function setNodeIPAddress(uint _nodeId, string memory _ipAddress) public {
         require(_nodeId < nodeIndex, "Node does not exist.");
         nodes[_nodeId].ipAddress = _ipAddress;
+        emit NodeIPAddressUpdated(_nodeId, _ipAddress);
     }
 
     /**
@@ -71,12 +59,12 @@ contract NodeRegistry {
      * Gets the details of a specified node.
      * 
      * @param _nodeId The ID of the node to retrieve.
-     * @return The IP address, owner address, and active status of the node.
+     * @return The IP address, owner address
      */
-    function getNodeDetails(uint _nodeId) public view returns (string memory, address, bool) {
+    function getNodeDetails(uint _nodeId) public view returns (string memory, address) {
         require(_nodeId < nodeIndex, "Node does not exist.");
         Node memory node = nodes[_nodeId];
-        return (node.ipAddress, node.owner, node.isActive);
+        return (node.ipAddress, node.owner);
     }
 
     /**
@@ -87,16 +75,5 @@ contract NodeRegistry {
      */
     function nodeExists(uint nodeId) public view returns (bool) {
         return nodeId < nodeIndex;
-    }
-
-    /**
-     * Checks if a node with the specified ID is active.
-     * 
-     * @param nodeId The ID of the node to check.
-     * @return True if the node is active, false otherwise.
-     */
-    function isNodeActive(uint nodeId) public view returns (bool) {
-        require(nodeExists(nodeId), "Node does not exist.");
-        return nodes[nodeId].isActive;
     }
 }

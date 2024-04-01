@@ -5,8 +5,7 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface INodeRegistry {
     function nodeExists(uint nodeId) external view returns (bool);
-    function isNodeActive(uint nodeId) external view returns (bool);
-    function getNodeDetails(uint nodeId) external view returns (string memory, address, bool);
+    function getNodeDetails(uint nodeId) external view returns (string memory, address);
 }
 
 contract SessionManager {
@@ -59,7 +58,6 @@ contract SessionManager {
     function openSession(uint256 _computeCostLimit, uint _nodeId) public {
         require(deposits[msg.sender] >= _computeCostLimit, "Insufficient deposit for compute cost limit");
         require(nodeRegistry.nodeExists(_nodeId), "Node does not exist");
-        require(nodeRegistry.isNodeActive(_nodeId), "Node is not active");
 
         sessions[sessionCount] = Session(block.timestamp, _computeCostLimit, msg.sender, _nodeId, true, 0);
         emit SessionOpened(sessionCount, msg.sender, _nodeId);
@@ -84,7 +82,7 @@ contract SessionManager {
         bytes32 messageHash = keccak256(abi.encodePacked(_sessionId, _amountPaid));
 
         // Retrieve the node address from your getNodeDetails function
-        (, address nodeAddress, ) = nodeRegistry.getNodeDetails(session.nodeId);
+        (, address nodeAddress) = nodeRegistry.getNodeDetails(session.nodeId);
 
         // Verify the signature
         require(isValidSignature(nodeAddress, messageHash, _signature), "Invalid signature");
@@ -126,7 +124,7 @@ contract SessionManager {
         }
         
         // Get the node owner's address from the node registry
-        (, address nodeOwner, ) = nodeRegistry.getNodeDetails(session.nodeId);
+        (, address nodeOwner) = nodeRegistry.getNodeDetails(session.nodeId);
         require(msg.sender == nodeOwner, "Only the node owner can claim payment");
         
         payable(nodeOwner).transfer(session.amountClaimableByNodeOwner);
