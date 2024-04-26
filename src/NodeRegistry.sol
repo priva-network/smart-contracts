@@ -39,6 +39,7 @@ contract NodeRegistry {
      * @param _ipAddress The new IP address of the node.
      */
     function setNodeIPAddress(uint _nodeId, string memory _ipAddress) public {
+        // TODO: Should make sure the sender of this tx is the owner of the node
         require(_nodeId < nodeIndex, "Node does not exist.");
         nodes[_nodeId].ipAddress = _ipAddress;
         emit NodeIPAddressUpdated(_nodeId, _ipAddress);
